@@ -147,15 +147,24 @@ interface ReleaserConfigJson {
 }
 
 export interface ManifestOptions {
+  ///  If provided, use this SHA as the point to consider commits after
   bootstrapSha?: string;
   lastReleaseSha?: string;
+  /// Option for the node-workspace plugin
   alwaysLinkLocal?: boolean;
+  /// If true, create separate pull requests instead of a single manifest release pull request
   separatePullRequests?: boolean;
+  /// Any plugins to use for this repository.
   plugins?: PluginType[];
+  /// If true, create pull requests from a fork. Defaults to false.
   fork?: boolean;
+  /// Add a Signed-off-by annotation to the commit.
   signoff?: string;
+  /// Path to the versions manifest.
   manifestPath?: string;
+  /// Labels that denote a pending, untagged release pull request. Defaults to `[autorelease: pending]`
   labels?: string[];
+  /// Labels to apply to a tagged release pull request. Defaults to `[autorelease: tagged]`
   releaseLabels?: string[];
   snapshotLabels?: string[];
   skipLabeling?: boolean;
@@ -167,6 +176,31 @@ export interface ManifestOptions {
   releaseSearchDepth?: number;
   commitSearchDepth?: number;
 }
+
+export function defaultManifestOptions(): Required<ManifestOptions> {
+  return {
+    manifestPath: DEFAULT_RELEASE_PLEASE_MANIFEST,
+    separatePullRequests: false,
+    plugins: [],
+    fork: false,
+    releaseLabels: DEFAULT_RELEASE_LABELS,
+    labels: DEFAULT_LABELS,
+    skipLabeling: false,
+    sequentialCalls: false,
+    snapshotLabels: DEFAULT_SNAPSHOT_LABELS,
+    releaseSearchDepth: DEFAULT_RELEASE_SEARCH_DEPTH,
+    commitSearchDepth: DEFAULT_COMMIT_SEARCH_DEPTH,
+    alwaysLinkLocal: false,
+    bootstrapSha: "",
+    draft: false,
+    draftPullRequest: false,
+    groupPullRequestTitlePattern: "",
+    lastReleaseSha: "",
+    prerelease: false,
+    signoff: ""
+  };
+}
+
 
 export interface ReleaserPackageConfig extends ReleaserConfigJson {
   'package-name'?: string;
@@ -239,26 +273,10 @@ export class Manifest {
   readonly repositoryConfig: RepositoryConfig;
   readonly releasedVersions: ReleasedVersions;
   private targetBranch: string;
-  private separatePullRequests: boolean;
-  readonly fork: boolean;
-  private signoffUser?: string;
-  private labels: string[];
-  private skipLabeling?: boolean;
   private sequentialCalls?: boolean;
-  private releaseLabels: string[];
-  private snapshotLabels: string[];
-  private plugins: PluginType[];
   private _strategiesByPath?: Record<string, Strategy>;
   private _pathsByComponent?: Record<string, string>;
-  private manifestPath: string;
-  private bootstrapSha?: string;
-  private lastReleaseSha?: string;
-  private draft?: boolean;
-  private prerelease?: boolean;
-  private draftPullRequest?: boolean;
-  private groupPullRequestTitlePattern?: string;
-  readonly releaseSearchDepth: number;
-  readonly commitSearchDepth: number;
+  options: Required<Readonly<ManifestOptions>>;
 
   /**
    * Create a Manifest from explicit config in code. This assumes that the
@@ -269,21 +287,6 @@ export class Manifest {
    * @param {RepositoryConfig} repositoryConfig Parsed configuration of path => release configuration
    * @param {ReleasedVersions} releasedVersions Parsed versions of path => latest release version
    * @param {ManifestOptions} manifestOptions Optional. Manifest options
-   * @param {string} manifestOptions.bootstrapSha If provided, use this SHA
-   *   as the point to consider commits after
-   * @param {boolean} manifestOptions.alwaysLinkLocal Option for the node-workspace
-   *   plugin
-   * @param {boolean} manifestOptions.separatePullRequests If true, create separate pull
-   *   requests instead of a single manifest release pull request
-   * @param {PluginType[]} manifestOptions.plugins Any plugins to use for this repository
-   * @param {boolean} manifestOptions.fork If true, create pull requests from a fork. Defaults
-   *   to `false`
-   * @param {string} manifestOptions.signoff Add a Signed-off-by annotation to the commit
-   * @param {string} manifestOptions.manifestPath Path to the versions manifest
-   * @param {string[]} manifestOptions.labels Labels that denote a pending, untagged release
-   *   pull request. Defaults to `[autorelease: pending]`
-   * @param {string[]} manifestOptions.releaseLabels Labels to apply to a tagged release
-   *   pull request. Defaults to `[autorelease: tagged]`
    */
   constructor(
     github: GitHub,
@@ -297,31 +300,13 @@ export class Manifest {
     this.targetBranch = targetBranch;
     this.repositoryConfig = repositoryConfig;
     this.releasedVersions = releasedVersions;
-    this.manifestPath =
-      manifestOptions?.manifestPath || DEFAULT_RELEASE_PLEASE_MANIFEST;
-    this.separatePullRequests =
-      manifestOptions?.separatePullRequests ??
-      Object.keys(repositoryConfig).length === 1;
-    this.plugins = manifestOptions?.plugins || [];
-    this.fork = manifestOptions?.fork || false;
-    this.signoffUser = manifestOptions?.signoff;
-    this.releaseLabels =
-      manifestOptions?.releaseLabels || DEFAULT_RELEASE_LABELS;
-    this.labels = manifestOptions?.labels || DEFAULT_LABELS;
-    this.skipLabeling = manifestOptions?.skipLabeling || false;
-    this.sequentialCalls = manifestOptions?.sequentialCalls || false;
-    this.snapshotLabels =
-      manifestOptions?.snapshotLabels || DEFAULT_SNAPSHOT_LABELS;
-    this.bootstrapSha = manifestOptions?.bootstrapSha;
-    this.lastReleaseSha = manifestOptions?.lastReleaseSha;
-    this.draft = manifestOptions?.draft;
-    this.draftPullRequest = manifestOptions?.draftPullRequest;
-    this.groupPullRequestTitlePattern =
-      manifestOptions?.groupPullRequestTitlePattern;
-    this.releaseSearchDepth =
-      manifestOptions?.releaseSearchDepth || DEFAULT_RELEASE_SEARCH_DEPTH;
-    this.commitSearchDepth =
-      manifestOptions?.commitSearchDepth || DEFAULT_COMMIT_SEARCH_DEPTH;
+    this.options = {
+      ...defaultManifestOptions(),
+      ...manifestOptions,
+      separatePullRequests: 
+        manifestOptions?.separatePullRequests ??
+          Object.keys(repositoryConfig).length === 1
+    };
   }
 
   /**
@@ -447,10 +432,11 @@ export class Manifest {
     const releaseShasByPath: Record<string, string> = {};
 
     // Releases by path
+    const options = this.options;
     const releasesByPath: Record<string, Release> = {};
-    logger.debug(`release search depth: ${this.releaseSearchDepth}`);
+    logger.debug(`release search depth: ${options.releaseSearchDepth}`);
     for await (const release of this.github.releaseIterator({
-      maxResults: this.releaseSearchDepth,
+      maxResults: options.releaseSearchDepth,
     })) {
       const tagName = TagName.parse(release.tagName);
       if (!tagName) {
@@ -527,9 +513,9 @@ export class Manifest {
     // seen all release commits
     logger.info('Collecting commits since all latest releases');
     const commits: Commit[] = [];
-    logger.debug(`commit search depth: ${this.commitSearchDepth}`);
+    logger.debug(`commit search depth: ${options.commitSearchDepth}`);
     const commitGenerator = this.github.mergeCommitIterator(this.targetBranch, {
-      maxResults: this.commitSearchDepth,
+      maxResults: options.commitSearchDepth,
       backfillFiles: true,
     });
     const releaseShas = new Set(Object.values(releaseShasByPath));
@@ -550,14 +536,14 @@ export class Manifest {
         }
         releaseCommitsFound += 1;
       }
-      if (this.lastReleaseSha && this.lastReleaseSha === commit.sha) {
+      if (options.lastReleaseSha && options.lastReleaseSha === commit.sha) {
         logger.info(
-          `Using configured lastReleaseSha ${this.lastReleaseSha} as last commit.`
+          `Using configured lastReleaseSha ${options.lastReleaseSha} as last commit.`
         );
         break;
-      } else if (needsBootstrap && commit.sha === this.bootstrapSha) {
+      } else if (needsBootstrap && commit.sha === options.bootstrapSha) {
         logger.info(
-          `Needed bootstrapping, found configured bootstrapSha ${this.bootstrapSha}`
+          `Needed bootstrapping, found configured bootstrapSha ${options.bootstrapSha}`
         );
         break;
       } else if (!needsBootstrap && releaseCommitsFound >= expectedShas) {
@@ -618,13 +604,13 @@ export class Manifest {
     }
 
     // Build plugins
-    const plugins = this.plugins.map(pluginType =>
+    const plugins = options.plugins.map(pluginType =>
       buildPlugin({
         type: pluginType,
         github: this.github,
         targetBranch: this.targetBranch,
         repositoryConfig: this.repositoryConfig,
-        manifestPath: this.manifestPath,
+        manifestPath: options.manifestPath,
       })
     );
 
@@ -656,8 +642,8 @@ export class Manifest {
       const releasePullRequest = await strategy.buildReleasePullRequest(
         pathCommits,
         latestRelease,
-        config.draftPullRequest ?? this.draftPullRequest,
-        this.labels
+        config.draftPullRequest ?? options.draftPullRequest,
+        options.labels
       );
       if (releasePullRequest) {
         // Update manifest, but only for valid release version - this will skip SNAPSHOT from java strategy
@@ -668,7 +654,7 @@ export class Manifest {
           const versionsMap: VersionsMap = new Map();
           versionsMap.set(path, releasePullRequest.version);
           releasePullRequest.updates.push({
-            path: this.manifestPath,
+            path: options.manifestPath,
             createIfMissing: false,
             updater: new ReleasePleaseManifest({
               version: releasePullRequest.version,
@@ -686,13 +672,13 @@ export class Manifest {
 
     // Combine pull requests into 1 unless configured for separate
     // pull requests
-    if (!this.separatePullRequests) {
+    if (!options.separatePullRequests) {
       plugins.push(
         new Merge(
           this.github,
           this.targetBranch,
           this.repositoryConfig,
-          this.groupPullRequestTitlePattern
+          options.groupPullRequestTitlePattern
         )
       );
     }
@@ -809,10 +795,11 @@ export class Manifest {
       this.targetBranch,
       'OPEN'
     );
+    const options = this.options;
     for await (const openPullRequest of generator) {
       if (
-        (hasAllLabels(this.labels, openPullRequest.labels) ||
-          hasAllLabels(this.snapshotLabels, openPullRequest.labels)) &&
+        (hasAllLabels(options.labels, openPullRequest.labels) ||
+          hasAllLabels(options.snapshotLabels, openPullRequest.labels)) &&
         BranchName.parse(openPullRequest.headBranchName) &&
         PullRequestBody.parse(openPullRequest.body)
       ) {
@@ -872,9 +859,9 @@ export class Manifest {
       pullRequest,
       this.targetBranch,
       {
-        fork: this.fork,
-        signoffUser: this.signoffUser,
-        skipLabeling: this.skipLabeling,
+        fork: this.options.fork,
+        signoffUser: this.options.signoff,
+        skipLabeling: this.options.skipLabeling,
       }
     );
     return newPullRequest;
@@ -897,8 +884,8 @@ export class Manifest {
       pullRequest,
       this.targetBranch,
       {
-        fork: this.fork,
-        signoffUser: this.signoffUser,
+        fork: this.options.fork,
+        signoffUser: this.options.signoff,
       }
     );
     return updatedPullRequest;
@@ -921,8 +908,8 @@ export class Manifest {
       pullRequest,
       this.targetBranch,
       {
-        fork: this.fork,
-        signoffUser: this.signoffUser,
+        fork: this.options.fork,
+        signoffUser: this.options.signoff,
       }
     );
     // TODO: consider leaving the snooze label
@@ -938,7 +925,7 @@ export class Manifest {
       200
     );
     for await (const pullRequest of pullRequestGenerator) {
-      if (!hasAllLabels(this.labels, pullRequest.labels)) {
+      if (!hasAllLabels(this.options.labels, pullRequest.labels)) {
         continue;
       }
       logger.debug(
@@ -979,7 +966,7 @@ export class Manifest {
             ...release,
             path,
             pullRequest,
-            draft: config.draft ?? this.draft,
+            draft: config.draft ?? this.options.draft,
             prerelease:
               config.prerelease &&
               (!!release.tag.version.preRelease ||
@@ -1060,6 +1047,7 @@ export class Manifest {
       }
     }
 
+    const options = this.options;
     if (duplicateReleases.length > 0) {
       if (
         duplicateReleases.length + githubReleases.length ===
@@ -1068,8 +1056,8 @@ export class Manifest {
         // we've either tagged all releases or they were duplicates:
         // adjust tags on pullRequest
         await Promise.all([
-          this.github.removeIssueLabels(this.labels, pullRequest.number),
-          this.github.addIssueLabels(this.releaseLabels, pullRequest.number),
+          this.github.removeIssueLabels(options.labels, pullRequest.number),
+          this.github.addIssueLabels(options.releaseLabels, pullRequest.number),
         ]);
       }
       if (githubReleases.length === 0) {
@@ -1079,8 +1067,8 @@ export class Manifest {
     } else {
       // adjust tags on pullRequest
       await Promise.all([
-        this.github.removeIssueLabels(this.labels, pullRequest.number),
-        this.github.addIssueLabels(this.releaseLabels, pullRequest.number),
+        this.github.removeIssueLabels(options.labels, pullRequest.number),
+        this.github.addIssueLabels(options.releaseLabels, pullRequest.number),
       ]);
     }
 

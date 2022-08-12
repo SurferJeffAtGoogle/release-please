@@ -472,7 +472,7 @@ const createReleasePullRequestCommand: yargs.CommandModule<
     if (argv.dryRun) {
       const pullRequests = await manifest.buildPullRequests();
       console.log(`Would open ${pullRequests.length} pull requests`);
-      console.log('fork:', manifest.fork);
+      console.log('fork:', manifest.options.fork);
       for (const pullRequest of pullRequests) {
         console.log('title:', pullRequest.title.toString());
         console.log('branch:', pullRequest.headRefName);
@@ -605,7 +605,7 @@ const createManifestPullRequestCommand: yargs.CommandModule<
     if (argv.dryRun) {
       const pullRequests = await manifest.buildPullRequests();
       console.log(`Would open ${pullRequests.length} pull requests`);
-      console.log('fork:', manifest.fork);
+      console.log('fork:', manifest.options.fork);
       for (const pullRequest of pullRequests) {
         console.log('title:', pullRequest.title.toString());
         console.log('branch:', pullRequest.headRefName);
