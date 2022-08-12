@@ -191,7 +191,7 @@ function gitHubOptions(yargs: yargs.Argv): yargs.Argv {
     });
 }
 
-function releaseOptions(yargs: yargs.Argv): yargs.Argv {
+function releaseOptions(yargs: yargs.Argv<ReleaseArgs>): yargs.Argv {
   return yargs
     .option('draft', {
       describe:
@@ -225,7 +225,7 @@ function releaseOptions(yargs: yargs.Argv): yargs.Argv {
     });
 }
 
-function pullRequestOptions(yargs: yargs.Argv): yargs.Argv {
+function pullRequestOptions(yargs: yargs.Argv<PullRequestArgs>): yargs.Argv {
   // common to ReleasePR and GitHubRelease
   return yargs
     .option('label', {
@@ -254,7 +254,7 @@ function pullRequestOptions(yargs: yargs.Argv): yargs.Argv {
     });
 }
 
-function pullRequestStrategyOptions(yargs: yargs.Argv): yargs.Argv {
+function pullRequestStrategyOptions(yargs: yargs.Argv<PullRequestStrategyArgs>): yargs.Argv {
   return yargs
     .option('release-as', {
       describe: 'override the semantically determined release version',
@@ -358,7 +358,7 @@ function pullRequestStrategyOptions(yargs: yargs.Argv): yargs.Argv {
 }
 
 function manifestConfigOptions(
-  yargs: yargs.Argv,
+  yargs: yargs.Argv<ManifestConfigArgs>,
   defaultType?: string
 ): yargs.Argv {
   return yargs
@@ -381,7 +381,7 @@ function manifestConfigOptions(
     });
 }
 
-function manifestOptions(yargs: yargs.Argv): yargs.Argv {
+function manifestOptions(yargs: yargs.Argv<ManifestArgs>): yargs.Argv {
   return yargs
     .option('config-file', {
       default: 'release-please-config.json',
@@ -393,7 +393,7 @@ function manifestOptions(yargs: yargs.Argv): yargs.Argv {
     });
 }
 
-function taggingOptions(yargs: yargs.Argv): yargs.Argv {
+function taggingOptions(yargs: yargs.Argv<TaggingArgs>): yargs.Argv {
   return yargs
     .option('include-v-in-tags', {
       describe: 'include "v" in tag versions',
