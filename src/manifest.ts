@@ -177,7 +177,8 @@ export interface ManifestOptions {
   commitSearchDepth?: number;
 }
 
-export function defaultManifestOptions(): Required<ManifestOptions> {
+export function defaultManifestOptions(): Required<Omit<ManifestOptions, 'draft'>> {
+  // Draft is the one field which may remain undefined.
   return {
     manifestPath: DEFAULT_RELEASE_PLEASE_MANIFEST,
     separatePullRequests: false,
@@ -192,7 +193,6 @@ export function defaultManifestOptions(): Required<ManifestOptions> {
     commitSearchDepth: DEFAULT_COMMIT_SEARCH_DEPTH,
     alwaysLinkLocal: false,
     bootstrapSha: "",
-    draft: false,
     draftPullRequest: false,
     groupPullRequestTitlePattern: "",
     lastReleaseSha: "",
@@ -276,7 +276,7 @@ export class Manifest {
   private sequentialCalls?: boolean;
   private _strategiesByPath?: Record<string, Strategy>;
   private _pathsByComponent?: Record<string, string>;
-  options: Required<Readonly<ManifestOptions>>;
+  options: Readonly<Required<Omit<ManifestOptions, 'draft'>> & { draft?: boolean }>;
 
   /**
    * Create a Manifest from explicit config in code. This assumes that the

@@ -295,7 +295,7 @@ describe('Manifest', () => {
         github,
         github.repository.defaultBranch
       );
-      expect(manifest['groupPullRequestTitlePattern']).to.eql(
+      expect(manifest.options['groupPullRequestTitlePattern']).to.eql(
         'chore${scope}: release${component} v${version}'
       );
       expect(
@@ -471,8 +471,8 @@ describe('Manifest', () => {
         github,
         github.repository.defaultBranch
       );
-      expect(manifest['labels']).to.deep.equal(['custom: pending']);
-      expect(manifest['releaseLabels']).to.deep.equal(['custom: tagged']);
+      expect(manifest.options['labels']).to.deep.equal(['custom: pending']);
+      expect(manifest.options['releaseLabels']).to.deep.equal(['custom: tagged']);
     });
     it('should build simple plugins from manifest', async () => {
       const getFileContentsStub = sandbox.stub(
@@ -495,7 +495,7 @@ describe('Manifest', () => {
         github,
         github.repository.defaultBranch
       );
-      expect(manifest['plugins']).to.deep.equal([
+      expect(manifest.options['plugins']).to.deep.equal([
         'node-workspace',
         'cargo-workspace',
       ]);
@@ -524,7 +524,7 @@ describe('Manifest', () => {
         github,
         github.repository.defaultBranch
       );
-      expect(manifest['plugins']).to.deep.equal([
+      expect(manifest.options['plugins']).to.deep.equal([
         {
           type: 'linked-versions',
           groupName: 'grouped components',
@@ -556,8 +556,8 @@ describe('Manifest', () => {
         github,
         github.repository.defaultBranch
       );
-      expect(manifest.releaseSearchDepth).to.eql(10);
-      expect(manifest.commitSearchDepth).to.eql(50);
+      expect(manifest.options.releaseSearchDepth).to.eql(10);
+      expect(manifest.options.commitSearchDepth).to.eql(50);
     });
 
     it('should read changelog host from manifest', async () => {
@@ -2847,7 +2847,7 @@ describe('Manifest', () => {
           releaseSearchDepth: 1,
         }
       );
-      expect(manifest.releaseSearchDepth).to.eql(1);
+      expect(manifest.options.releaseSearchDepth).to.eql(1);
       const pullRequests = await manifest.buildPullRequests();
       expect(pullRequests).lengthOf(1);
       const pullRequest = pullRequests[0];
@@ -2918,7 +2918,7 @@ describe('Manifest', () => {
           commitSearchDepth: 1,
         }
       );
-      expect(manifest.commitSearchDepth).to.eql(1);
+      expect(manifest.options.commitSearchDepth).to.eql(1);
       const pullRequests = await manifest.buildPullRequests();
       expect(pullRequests).lengthOf(1);
       const pullRequest = pullRequests[0];
